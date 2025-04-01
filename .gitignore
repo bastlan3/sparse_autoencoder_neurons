@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch specific
+*.pt
+*.pth
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Output directories
+results/
+checkpoints/
+inference_results/
+
+# Data files
+*.npy
+*.npz
+*.hdf5
+*.h5
+
+# Logs
+*.log
+*.out
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/

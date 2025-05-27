@@ -3,6 +3,27 @@
 """
 Main training script for sparse dictionary learning on ResNet50 features.
 Recreates findings from "Towards Monosemanticity" paper.
+
+This script orchestrates the training process, which involves:
+1.  **ResNet Feature Extraction**: Utilizes a pre-trained ResNet model (e.g., ResNet50)
+    to extract feature vectors from input images. These features serve as the
+    input to the sparse dictionary.
+2.  **Sparse Dictionary Learning**: Trains a sparse dictionary to reconstruct the
+    ResNet features using a sparse set of dictionary elements (atoms). The goal is
+    to learn a meaningful and interpretable representation of the features.
+3.  **Data Handling**: Loads datasets like ImageNet and potentially others (e.g., Many00)
+    for training and validation.
+4.  **Experiment Modes**:
+    -   **Full Experiment**: Uses all features extracted by the ResNet layer.
+    -   **Subset Experiment**: Focuses on a small subset of neurons (e.g., 64) from
+        the ResNet features, allowing for more targeted analysis.
+5.  **Training Loop**: Implements the main training logic, including:
+    -   Forward and backward passes.
+    -   Calculation of reconstruction and sparsity losses.
+    -   Optimization using Adam and learning rate scheduling.
+    -   Periodic validation and model checkpointing.
+    -   Logging to Weights & Biases (wandb) for experiment tracking.
+    -   Visualization of dictionary features.
 """
 
 import torch
@@ -20,7 +41,7 @@ from models.resnet_extractor import ResNetFeatureExtractor
 from data.imagenet_loader import ImageNetDataLoader
 from data.many00_loader import Many00DataLoader
 from utils.training_utils import compute_sparsity_loss, compute_reconstruction_loss
-from utils.visualization import visualize_dictionary_features
+from test_models.utils.visualization_utils import visualize_dictionary_features
 
 
 def main():
@@ -188,6 +209,27 @@ def main():
 
 
 def validate(sparse_dict, resnet_extractor, val_loader, device, use_subset):
+    """
+    Evaluates the sparse dictionary model on a validation dataset.
+
+    This function sets the model to evaluation mode, iterates through the
+    validation data loader, extracts features, performs reconstruction using
+    the sparse dictionary, and calculates the combined reconstruction and
+    sparsity loss.
+
+    Args:
+        sparse_dict (SparseDictionary): The sparse dictionary model to evaluate.
+        resnet_extractor (ResNetFeatureExtractor): The ResNet model used for
+            feature extraction.
+        val_loader (DataLoader): DataLoader for the validation dataset.
+        device (torch.device): The device (CPU or CUDA) to perform computations on.
+        use_subset (bool): If True, a random subset of 64 features is used,
+            replicating one of the experiment conditions.
+
+    Returns:
+        float: The average validation loss (reconstruction + sparsity) over
+               the entire validation set.
+    """
     sparse_dict.eval()
     total_val_loss = 0
     
@@ -209,6 +251,28 @@ def validate(sparse_dict, resnet_extractor, val_loader, device, use_subset):
 
 
 def save_checkpoint(model, optimizer, epoch, loss, experiment_name):
+    """
+    Saves the model and optimizer states to a checkpoint file.
+
+    The checkpoint includes the current epoch, the model's state dictionary,
+    the optimizer's state dictionary, and the loss at the time of saving.
+    Checkpoints are saved in a 'checkpoints' directory, named with the
+    experiment name and epoch number.
+
+    Args:
+        model (nn.Module): The model whose state needs to be saved.
+        optimizer (optim.Optimizer): The optimizer whose state needs to be saved.
+        epoch (int): The current epoch number.
+        loss (float): The loss value at which the checkpoint is being saved
+                      (typically validation loss).
+        experiment_name (str): A name for the current experiment, used in the
+                               checkpoint filename.
+
+    Side Effects:
+        Creates a directory named 'checkpoints' if it doesn't already exist.
+        Writes a PyTorch checkpoint file (.pth) to the 'checkpoints' directory.
+        Prints a confirmation message with the path to the saved checkpoint.
+    """
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),

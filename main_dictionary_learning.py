@@ -34,7 +34,7 @@ import pathlib # Already imported above
 # If data_handling.py is meant to be a module, it might need an __init__.py in the directory
 # and the import might be `from .data_handling import MultiSessionConcatDataset` if run as part of a package.
 # For now, using direct import as if it's in PYTHONPATH.
-from data_handling import MultiSessionConcatDataset
+from data.neural_data_loader import MultiSessionConcatDataset
 
 
 # Removed TCA import as it's not used in this part
@@ -47,15 +47,11 @@ print(f"Using device: {device}")
 # Ensure this path is correct relative to where original_script.py is executed from.
 # If original_script.py is in refactored_code, then './../data/Pa220227_0527.txt'
 # means it looks for 'data/Pa220227_0527.txt' in the parent of 'refactored_code'.
+# Now that the script is at the root, the path is direct.
 try:
-    lst_sess_file_path = './../data/Pa220227_0527.txt'
+    lst_sess_file_path = './data/Pa220227_0527.txt' # Adjusted for script at root
     if not os.path.exists(lst_sess_file_path):
-        # Try an alternative path if the script is run from the root of the repo
-        alt_lst_sess_file_path = './data/Pa220227_0527.txt'
-        if os.path.exists(alt_lst_sess_file_path):
-            lst_sess_file_path = alt_lst_sess_file_path
-        else:
-            raise FileNotFoundError(f"Session list file not found at {lst_sess_file_path} or {alt_lst_sess_file_path}")
+        raise FileNotFoundError(f"Session list file not found at {lst_sess_file_path}")
     lst_sess = [line.strip() for line in  open(lst_sess_file_path, 'r')]
 except FileNotFoundError as e:
     print(f"Error: {e}. Please ensure the session list file path is correct.")

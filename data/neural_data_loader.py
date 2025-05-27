@@ -7,6 +7,8 @@ import torchvision.transforms as transforms # Already present in original script
 from pathlib import Path # Changed from pathlib to Path for direct use
 from torch.utils.data import Dataset # For the base class
 
+FILE_BASE_PATH = Path(__file__).resolve().parent
+
 # Custom Dataset to load from multiple session datasets produced by preprocess(i), with lazy evaluation and caching
 class MultiSessionConcatDataset(Dataset): # Changed base class to Dataset
     def __init__(self, session_ids, preprocess_fn, images=False): # PEP8: images=False
@@ -30,7 +32,7 @@ class MultiSessionConcatDataset(Dataset): # Changed base class to Dataset
         # Assuming this script is in 'refactored_code', and CSV is in 'neural_switch/data'
         # This relative path might need adjustment based on execution context.
         # For now, using the provided path, assuming it's accessible.
-        self.precomputed_lengths_path = Path('./../neural_switch/data/precomputed_lengths.csv') # More robust path
+        self.precomputed_lengths_path = FILE_BASE_PATH / '../neural_switch/data/precomputed_lengths.csv' # More robust path
         
         if self.precomputed_lengths_path.exists():
             self.precomputed_lengths_df = pd.read_csv(self.precomputed_lengths_path)
@@ -104,7 +106,7 @@ class MultiSessionConcatDataset(Dataset): # Changed base class to Dataset
         
         # Path to neural data, adjust if necessary
         # Assuming it's relative to where the main script using this class runs from.
-        neural_data_path = Path('./../neural_switch/data/neural_data') # More robust path
+        neural_data_path = FILE_BASE_PATH / '../neural_switch/data/neural_data' # More robust path
 
         try:
             features, img_paths = self.preprocess_fn(session_id, neural_data_path)
@@ -169,7 +171,7 @@ class MultiSessionConcatDataset(Dataset): # Changed base class to Dataset
             img_path_relative = img_paths_for_session[local_idx]
             # Base path for images, adjust if necessary
             # Assuming this path is relative to where the main script runs.
-            img_base_path = Path('./../data/manyOO/')
+            img_base_path = FILE_BASE_PATH / '../data/manyOO/'
             
             # Try primary path, then fallback to 'TestItems' subdirectory
             img_full_path = img_base_path / img_path_relative

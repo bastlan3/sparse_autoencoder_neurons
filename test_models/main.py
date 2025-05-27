@@ -52,6 +52,8 @@ def main():
                        help='Name for the experiment')
     parser.add_argument('--use_subset', action='store_true',
                        help='Use only 64 neurons subset experiment')
+    parser.add_argument('--dataset', type=str, default='imagenet', choices=['imagenet', 'many00'],
+                        help='Dataset to use for training (imagenet or many00)')
     args = parser.parse_args()
     
     # Load configuration
@@ -111,9 +113,48 @@ def main():
     )
     
     # Combine data loaders or alternate between them
-    train_loader = imagenet_loader.get_train_loader()
-    val_loader = imagenet_loader.get_val_loader()
-    
+    if args.dataset == 'imagenet':
+        data_loader_train = ImageNetDataLoader(
+            root_path=config['data']['imagenet_path'],
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers'],
+            shuffle=True
+        )
+        data_loader_val = ImageNetDataLoader(
+            root_path=config['data']['imagenet_path'], # Assuming val uses same root
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers'],
+            shuffle=False
+        )
+        train_loader = data_loader_train.get_train_loader()
+        val_loader = data_loader_val.get_val_loader()
+    elif args.dataset == 'many00':
+        # For Many00, ensure Many00DataLoader can provide distinct train/val loaders
+        # or handle shuffle appropriately if using get_dataloader()
+        # The current Many00DataLoader takes shuffle in __init__.
+        many00_loader_train = Many00DataLoader(
+            root_path=config['data']['many00_path'],
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers'],
+            shuffle=True,
+            image_size=config['data'].get('many00_image_size', 224), # Example of a dataset-specific param
+            # any other Many00 specific params from config can be added here
+            # e.g., **config['data'].get('many00_params', {})
+        )
+        many00_loader_val = Many00DataLoader(
+            root_path=config['data']['many00_path'], # Assuming val data is same path or handled by loader
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers'],
+            shuffle=False,
+            image_size=config['data'].get('many00_image_size', 224),
+            # **config['data'].get('many00_params', {})
+        )
+        # Assuming Many00DataLoader has get_dataloader() method as per its implementation
+        train_loader = many00_loader_train.get_dataloader()
+        val_loader = many00_loader_val.get_dataloader()
+    else:
+        raise ValueError(f"Unsupported dataset: {args.dataset}")
+        
     # Optimizer
     optimizer = optim.Adam(sparse_dict.parameters(), lr=config['training']['learning_rate'])
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5)

@@ -122,19 +122,28 @@ class Many00Dataset(Dataset):
         potential_classes.sort()
         
         if not potential_classes:
-            # If no subdirectories, treat all images in root as single class
-            self.classes = ['default']
-            self.class_to_idx = {'default': 0}
-            self._load_images_from_directory(self.root_path, 0)
-        else:
-            # Multiple classes based on subdirectories
-            self.classes = potential_classes
-            self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
-            
-            for class_name in self.classes:
-                class_path = os.path.join(self.root_path, class_name)
-                class_idx = self.class_to_idx[class_name]
-                self._load_images_from_directory(class_path, class_idx)
+            raise FileNotFoundError(
+                f"No category subdirectories found in {self.root_path}. "
+                "Many00 dataset expects images to be organized into subfolders, "
+                "each representing a category."
+            )
+        
+        # Multiple classes based on subdirectories
+        self.classes = potential_classes
+        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+        
+        for class_name in self.classes:
+            class_path = os.path.join(self.root_path, class_name)
+            class_idx = self.class_to_idx[class_name]
+            # Assuming images are directly in class_path, not further subdirectories within class_path
+            # So, recursive_search for _load_images_from_directory might be better set to False
+            # However, the current implementation of _load_images_from_directory handles both cases correctly.
+            # If recursive_search is True (default), it walks starting from class_path.
+            # If recursive_search is False, it lists files in class_path.
+            # For the structure 'root/category/image.jpg', either will work.
+            # Let's stick to the default recursive_search=True for flexibility,
+            # as it doesn't harm the specified structure.
+            self._load_images_from_directory(class_path, class_idx)
     
     def _load_images_from_directory(self, directory: str, class_idx: int):
         """Load all images from a directory."""

@@ -111,5 +111,121 @@ class TestMany00DataLoader(unittest.TestCase):
         loader.get_dataset.assert_called_once()
 
 
+# New tests for Many00Dataset with real file loading
+import tempfile
+import shutil
+import os
+from PIL import Image
+from torchvision import transforms as T # Use T to avoid conflict
+
+def create_dummy_image(path, size=(64, 64), format="PNG", color='red'):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img = Image.new('RGB', size, color=color)
+    img.save(path, format)
+
+class TestMany00DatasetRealFiles(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        # Create mock directory structure
+        # category_A/img1.png, category_A/img2.jpg
+        # category_B/img3.png
+        create_dummy_image(os.path.join(self.temp_dir, "category_A", "img1.png"), format="PNG")
+        create_dummy_image(os.path.join(self.temp_dir, "category_A", "img2.jpg"), format="JPEG")
+        create_dummy_image(os.path.join(self.temp_dir, "category_B", "img3.png"), format="PNG")
+        # Add a non-image file to ensure it's ignored
+        with open(os.path.join(self.temp_dir, "category_A", "notes.txt"), "w") as f:
+            f.write("test")
+        # Add a nested directory to test recursive_search (default is True)
+        create_dummy_image(os.path.join(self.temp_dir, "category_A", "nested", "img4.png"), format="PNG", color='blue')
+
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
+    def test_initialization_and_loading(self):
+        """Test Many00Dataset loads data correctly from directory structure."""
+        dataset = Many00Dataset(root_path=self.temp_dir)
+        
+        self.assertEqual(len(dataset.image_paths), 4) # img1, img2, img3, img4
+        self.assertEqual(len(dataset.labels), 4)
+        self.assertEqual(len(dataset.classes), 2)
+        self.assertEqual(dataset.classes, ['category_A', 'category_B']) # Sorted
+        self.assertEqual(dataset.class_to_idx, {'category_A': 0, 'category_B': 1})
+
+        # Check paths and labels (order might vary due to os.walk, so check presence and corresponding label)
+        expected_files = {
+            os.path.join(self.temp_dir, "category_A", "img1.png"): 0,
+            os.path.join(self.temp_dir, "category_A", "img2.jpg"): 0,
+            os.path.join(self.temp_dir, "category_A", "nested", "img4.png"): 0,
+            os.path.join(self.temp_dir, "category_B", "img3.png"): 1,
+        }
+        
+        loaded_files_with_labels = {}
+        for path, label in zip(dataset.image_paths, dataset.labels):
+            loaded_files_with_labels[path] = label
+        
+        self.assertEqual(loaded_files_with_labels, expected_files)
+
+
+    def test_len_method(self):
+        """Test Many00Dataset __len__ method."""
+        dataset = Many00Dataset(root_path=self.temp_dir)
+        self.assertEqual(len(dataset), 4)
+
+    def test_getitem_method(self):
+        """Test Many00Dataset __getitem__ method with basic ToTensor transform."""
+        transform = T.Compose([T.ToTensor()])
+        dataset = Many00Dataset(root_path=self.temp_dir, transform=transform)
+        
+        # Assuming img1.png from category_A is one of the items
+        # Find its index, as order isn't guaranteed if not sorting explicitly in _load_images_from_directory
+        # Based on current implementation, os.walk is used, order can be tricky.
+        # Let's find a specific image
+        target_path = os.path.join(self.temp_dir, "category_A", "img1.png")
+        item_idx = -1
+        for i, path in enumerate(dataset.image_paths):
+            if path == target_path:
+                item_idx = i
+                break
+        self.assertNotEqual(item_idx, -1, "Target image not found in dataset paths")
+
+        img_tensor, label = dataset[item_idx]
+        
+        self.assertIsInstance(img_tensor, torch.Tensor)
+        self.assertEqual(label, 0) # category_A should be index 0
+        self.assertEqual(img_tensor.shape, (3, 64, 64)) # Default dummy image size is 64x64
+
+    def test_getitem_with_dataloader_transform(self):
+        """Test Many00Dataset __getitem__ when used with Many00DataLoader's transforms."""
+        # Many00DataLoader will apply its own transforms, including Resize
+        loader = Many00DataLoader(root_path=self.temp_dir, image_size=32, batch_size=1)
+        dataset = loader.get_dataset() # This dataset will have the loader's transform
+
+        target_path = os.path.join(self.temp_dir, "category_B", "img3.png")
+        item_idx = -1
+        for i, path in enumerate(dataset.image_paths):
+            if path == target_path:
+                item_idx = i
+                break
+        self.assertNotEqual(item_idx, -1, "Target image not found in dataset paths")
+        
+        img_tensor, label = dataset[item_idx]
+        
+        self.assertIsInstance(img_tensor, torch.Tensor)
+        self.assertEqual(label, 1) # category_B should be index 1
+        # Shape should be (3, 32, 32) due to image_size=32 in Many00DataLoader
+        # And normalization means values might not be 0-1.
+        self.assertEqual(img_tensor.shape, (3, 32, 32))
+
+    def test_non_recursive_search(self):
+        """Test non-recursive search for images."""
+        dataset = Many00Dataset(root_path=self.temp_dir, recursive_search=False)
+        # Should only find img1.png, img2.jpg, img3.png (3 images), not img4.png in nested dir
+        self.assertEqual(len(dataset.image_paths), 3)
+        
+        nested_img_path = os.path.join(self.temp_dir, "category_A", "nested", "img4.png")
+        self.assertNotIn(nested_img_path, dataset.image_paths)
+
+
 if __name__ == '__main__':
     unittest.main()

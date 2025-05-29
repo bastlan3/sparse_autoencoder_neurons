@@ -1,4 +1,3 @@
- 
 """
 ResNet Feature Extractor for extracting intermediate layer representations.
 Specifically designed to extract features from the penultimate layer.
@@ -166,6 +165,28 @@ class ResNetFeatureExtractor(nn.Module):
         # Set new layer name and register hooks
         self.layer_name = layer_name
         self._register_hooks()
+    
+    def _register_hook(self):
+        """Register forward hook to capture intermediate features."""
+        def hook_fn(module, input, output):
+            # Handle different layer outputs
+            if isinstance(output, torch.Tensor):
+                if len(output.shape) == 4:  # Convolutional layer output [B, C, H, W]
+                    # Apply global average pooling to spatial dimensions
+                    self.features = torch.nn.functional.adaptive_avg_pool2d(output, (1, 1)).squeeze(-1).squeeze(-1)
+                else:  # Already flattened (e.g., from avgpool or fc layers)
+                    self.features = output.squeeze() if output.dim() > 2 else output
+            else:
+                # Handle tuple outputs (some layers might return tuples)
+                self.features = output[0] if isinstance(output, (tuple, list)) else output
+        
+        # Find the target layer and register hook
+        target_module = self._get_layer_by_name(self.layer_name)
+        if target_module is not None:
+            target_module.register_forward_hook(hook_fn)
+            print(f"Registered hook for layer: {self.layer_name}")
+        else:
+            raise ValueError(f"Layer '{self.layer_name}' not found in {self.model_name}")
     
     def __del__(self):
         """Cleanup hooks when object is destroyed."""

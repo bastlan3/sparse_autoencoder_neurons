@@ -1,5 +1,5 @@
 """
-Training utilities for sparse dictionary learning experiments.
+Training utilities for sparse dictionary learning.
 """
 
 import torch
@@ -41,7 +41,7 @@ def compute_sparsity_loss(activations: torch.Tensor, sparsity_coef: float = 1e-3
     Args:
         activations (torch.Tensor): Sparse activations [batch_size, dict_size]
         sparsity_coef (float): Sparsity regularization coefficient
-        sparsity_type (str): Type of sparsity regularization ('l1', 'l0_approx', 'entropy')
+        sparsity_type (str): Type of sparsity regularization ('l1', 'l0_approx', 'entropy', 'target_sparsity')
         
     Returns:
         torch.Tensor: Sparsity loss (scalar)
@@ -61,6 +61,12 @@ def compute_sparsity_loss(activations: torch.Tensor, sparsity_coef: float = 1e-3
         probs = F.softmax(activations, dim=1)
         entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=1)
         sparsity_loss = -sparsity_coef * torch.mean(entropy)  # Negative because we want low entropy
+    
+    elif sparsity_type == 'target_sparsity':
+        # Target a specific number of active features (1-4 per sample)
+        target_active = 2.5  # Target 2-3 active features on average
+        active_per_sample = torch.sum(activations > 0, dim=1).float()
+        sparsity_loss = sparsity_coef * torch.mean((active_per_sample - target_active) ** 2)
     
     else:
         raise ValueError(f"Unsupported sparsity type: {sparsity_type}")
@@ -121,11 +127,11 @@ def compute_total_loss(original: torch.Tensor, reconstructed: torch.Tensor,
     )
     losses['reconstruction'] = recon_loss
     
-    # Sparsity loss
+    # Sparsity loss - use higher coefficient and target sparsity by default
     sparsity_loss = compute_sparsity_loss(
         activations,
-        sparsity_coef=loss_config.get('sparsity_coef', 1e-3),
-        sparsity_type=loss_config.get('sparsity_type', 'l1')
+        sparsity_coef=loss_config.get('sparsity_coef', 0.1),  # Increased default
+        sparsity_type=loss_config.get('sparsity_type', 'target_sparsity')  # Changed default
     )
     losses['sparsity'] = sparsity_loss
     

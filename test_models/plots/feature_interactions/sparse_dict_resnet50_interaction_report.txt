@@ -1,0 +1,48 @@
+Feature Interaction Analysis - sparse_dict_resnet50
+==================================================
+
+Top 20 Co-activating Feature Pairs:
+----------------------------------------
+Features  561 &   76: co-activation = 0.9916
+Features   76 &  561: co-activation = 0.9916
+Features 1912 &   76: co-activation = 0.9909
+Features   76 & 1912: co-activation = 0.9909
+Features   76 & 2872: co-activation = 0.9903
+Features 2872 &   76: co-activation = 0.9903
+Features   76 & 2926: co-activation = 0.9902
+Features 2926 &   76: co-activation = 0.9902
+Features  995 &   76: co-activation = 0.9902
+Features   76 &  995: co-activation = 0.9902
+Features   76 & 2908: co-activation = 0.9901
+Features 2908 &   76: co-activation = 0.9901
+Features   76 &  499: co-activation = 0.9898
+Features  499 &   76: co-activation = 0.9898
+Features 2145 &   76: co-activation = 0.9893
+Features 3103 &   76: co-activation = 0.9893
+Features   76 & 2145: co-activation = 0.9893
+Features   76 & 3103: co-activation = 0.9893
+Features 3607 &   76: co-activation = 0.9892
+Features   76 & 3607: co-activation = 0.9892
+
+Top 20 Correlated Feature Pairs:
+----------------------------------------
+Features  579 & 1802: correlation = 0.4183
+Features 1802 &  579: correlation = 0.4183
+Features  579 & 2890: correlation = 0.3394
+Features 2890 &  579: correlation = 0.3394
+Features 2358 &  579: correlation = 0.3391
+Features  579 & 2358: correlation = 0.3391
+Features 2420 & 1802: correlation = 0.3277
+Features 1802 & 2420: correlation = 0.3277
+Features 2420 & 2358: correlation = 0.3179
+Features 2358 & 2420: correlation = 0.3179
+Features 2420 &  579: correlation = 0.3120
+Features  579 & 2420: correlation = 0.3120
+Features 2890 & 1802: correlation = 0.3107
+Features 1802 & 2890: correlation = 0.3107
+Features 1326 & 2582: correlation = 0.2861
+Features 2582 & 1326: correlation = 0.2861
+Features 2890 & 2420: correlation = 0.2842
+Features 2420 & 2890: correlation = 0.2842
+Features  161 & 3487: correlation = 0.2793
+Features 3487 &  161: correlation = 0.2793

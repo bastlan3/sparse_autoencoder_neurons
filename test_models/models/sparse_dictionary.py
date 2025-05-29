@@ -17,14 +17,14 @@ class SparseDictionary(nn.Module):
     - Decoder: Linear layer -> reconstruction to original space
     """
     
-    def __init__(self, input_dim, dict_size, sparsity_coef=1e-3, tie_weights=False):
+    def __init__(self, input_dim, dict_size, sparsity_coef=0.1, tie_weights=False):
         """
         Initialize Sparse Dictionary.
         
         Args:
             input_dim (int): Dimension of input features (e.g., 2048 for ResNet50)
             dict_size (int): Size of dictionary (sparse dimension, typically >> input_dim)
-            sparsity_coef (float): Coefficient for sparsity regularization
+            sparsity_coef (float): Coefficient for sparsity regularization (increased default)
             tie_weights (bool): Whether to tie encoder and decoder weights
         """
         super(SparseDictionary, self).__init__()
@@ -175,12 +175,19 @@ class SparseDictionary(nn.Module):
             # Number of active features per sample
             active_per_sample = (activations > 0).sum(dim=1).float().mean().item()
             
+            # Sparsity statistics
+            active_counts = (activations > 0).sum(dim=1).float()
+            
             return {
                 'l0_sparsity': l0_sparsity,
                 'l1_norm': l1_norm,
                 'max_activation': max_activation,
                 'active_per_sample': active_per_sample,
-                'total_dict_size': self.dict_size
+                'active_per_sample_std': active_counts.std().item(),
+                'active_per_sample_min': active_counts.min().item(),
+                'active_per_sample_max': active_counts.max().item(),
+                'total_dict_size': self.dict_size,
+                'target_range': '1-4 features per sample'
             }
 
 
@@ -233,4 +240,4 @@ class TopKSparseDictionary(SparseDictionary):
             sparse_activations = torch.zeros_like(relu_activations)
             sparse_activations.scatter_(1, indices, values)
         
-        return sparse_activations 
+        return sparse_activations

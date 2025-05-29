@@ -1,4 +1,3 @@
- 
 """
 Many00 custom dataset loader for sparse dictionary learning experiments.
 This is a template/draft that needs to be customized based on your specific dataset structure.
@@ -40,29 +39,10 @@ class Many00Dataset(Dataset):
                  max_samples: Optional[int] = None):
         """
         Initialize Many00 dataset.
-        
-        Args:
-            root_path (str): Path to Many00 dataset root directory
-            transform: Image transformations to apply
-            image_extensions: Tuple of supported image file extensions
-            recursive_search: Whether to search subdirectories recursively
-            annotation_file: Path to annotation file (if exists)
-            metadata_file: Path to metadata file (if exists)  
-            class_mapping_file: Path to class mapping file (if exists)
-            subset_classes: List of specific classes to load (if applicable)
-            max_samples: Maximum number of samples to load
-            
-        MISSING INFORMATION NEEDED:
-        - What is the directory structure? E.g.:
-          * many00/class1/image1.jpg, many00/class2/image2.jpg
-          * many00/images/img1.jpg with separate labels file
-          * many00/train/..., many00/val/...
-        - Do you have labels? What format?
-        - Are there any metadata files (CSV, JSON)?
-        - What image formats are you using?
-        - Do you need train/val splits?
         """
         self.root_path = root_path
+        print(f"Many00Dataset: Using path: {self.root_path}")
+        
         self.transform = transform
         self.image_extensions = image_extensions
         self.recursive_search = recursive_search
@@ -90,7 +70,11 @@ class Many00Dataset(Dataset):
         THIS NEEDS TO BE CUSTOMIZED based on your specific dataset structure!
         """
         if not os.path.exists(self.root_path):
-            raise FileNotFoundError(f"Dataset root path not found: {self.root_path}")
+            print(f"Warning: Dataset root path not found: {self.root_path}")
+            # Create empty dataset for testing
+            self.classes = ['default']
+            self.class_to_idx = {'default': 0}
+            return
         
         # METHOD 1: Directory-based classes (like ImageFolder)
         # Uncomment and modify if your data is organized as: many00/class1/img1.jpg, many00/class2/img2.jpg
@@ -126,16 +110,20 @@ class Many00Dataset(Dataset):
             self.classes = ['default']
             self.class_to_idx = {'default': 0}
             self._load_images_from_directory(self.root_path, 0)
+            print("No subdirectories found, using single 'default' class")
         else:
             # Multiple classes based on subdirectories
             self.classes = potential_classes
             self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+            print(f"Found {len(self.classes)} categories: {self.classes}")
             
             for class_name in self.classes:
                 class_path = os.path.join(self.root_path, class_name)
                 class_idx = self.class_to_idx[class_name]
+                images_before = len(self.image_paths)
                 self._load_images_from_directory(class_path, class_idx)
-    
+                images_added = len(self.image_paths) - images_before
+
     def _load_images_from_directory(self, directory: str, class_idx: int):
         """Load all images from a directory."""
         if self.recursive_search:
@@ -278,6 +266,16 @@ class Many00Dataset(Dataset):
         
         return class_counts
 
+    def get_category_info(self):
+        """Get information about categories in the dataset."""
+        category_info = {
+            'categories': self.classes,
+            'category_counts': self.get_class_distribution(),
+            'total_categories': len(self.classes),
+            'total_images': len(self.image_paths)
+        }
+        return category_info
+
 
 class Many00DataLoader:
     """
@@ -296,21 +294,10 @@ class Many00DataLoader:
                  **dataset_kwargs):
         """
         Initialize Many00 data loader.
-        
-        MISSING INFORMATION - Please specify:
-        1. root_path: Path to your many00 dataset
-        2. Any additional dataset_kwargs specific to your data structure
-        
-        Example usage:
-        loader = Many00DataLoader(
-            root_path='/path/to/many00',
-            batch_size=32,
-            annotation_file='annotations.csv',  # if you have annotations
-            recursive_search=True,  # if images are in subdirectories
-            subset_classes=['class1', 'class2'],  # if you want specific classes
-        )
         """
         self.root_path = root_path
+        print(f"Many00DataLoader: Using path: {self.root_path}")
+        
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -348,7 +335,7 @@ class Many00DataLoader:
             transform=self.transform,
             **self.dataset_kwargs
         )
-    
+
     def get_dataloader(self):
         """Get the data loader."""
         dataset = self.get_dataset()
@@ -378,6 +365,8 @@ class Many00DataLoader:
         print(f"Total samples: {len(dataset)}")
         print(f"Number of classes: {len(dataset.classes)}")
         print(f"Classes: {dataset.classes}")
+        print(f"Note: Using ResNet layer4 will provide 2048-dimensional features")
+        print(f"      (after global average pooling from 2048x7x7 spatial features)")
         
         # Class distribution
         class_dist = dataset.get_class_distribution()
@@ -402,40 +391,15 @@ class Many00DataLoader:
 """
 Example configuration for Many00 dataset:
 
-# If your dataset structure is:
-# many00/
-#   ├── class1/
-#   │   ├── img1.jpg
-#   │   └── img2.jpg
-#   └── class2/
-#       ├── img3.jpg
-#       └── img4.jpg
-
+# Relative path from many00_loader.py file location:
 loader = Many00DataLoader(
-    root_path='/path/to/many00',
+    root_path='../../../../data/ManyOO',  # Goes up 4 levels from many00_loader.py
     batch_size=32,
-    recursive_search=False  # Images are directly in class folders
 )
 
-# If your dataset structure is:
-# many00/
-#   ├── images/
-#   │   ├── img1.jpg
-#   │   ├── img2.jpg
-#   │   └── ...
-#   └── annotations.csv  # Contains: image_path,label
-
+# Absolute path (works from anywhere):
 loader = Many00DataLoader(
-    root_path='/path/to/many00',
+    root_path='/home/user/data/ManyOO',
     batch_size=32,
-    annotation_file='annotations.csv'
-)
-
-# If you want only specific classes:
-loader = Many00DataLoader(
-    root_path='/path/to/many00',
-    batch_size=32,
-    subset_classes=['class1', 'class3', 'class5'],
-    max_samples=10000
 )
 """

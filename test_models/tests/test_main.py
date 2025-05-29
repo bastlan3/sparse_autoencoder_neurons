@@ -12,7 +12,6 @@ class TestMainIntegration(unittest.TestCase):
     @patch('test_models.main.save_checkpoint')
     @patch('test_models.main.ResNetFeatureExtractor')
     @patch('test_models.main.ImageNetDataLoader')
-    # Many00DataLoader is instantiated but not directly used for train/val loop if ImageNet is primary
     @patch('test_models.main.Many00DataLoader') 
     @patch('test_models.main.wandb')
     @patch('builtins.open', new_callable=mock_open, read_data='{"resnet": {"model_name": "resnet50", "target_layer": "avgpool", "pretrained": false}, "sparse_dict": {"dict_size": 16, "sparsity_coef": 0.01}, "data": {"imagenet_path": "fake/path", "many00_path": "fake/path", "num_workers": 0}, "training": {"batch_size": 1, "num_epochs": 1, "learning_rate": 0.001, "log_interval": 1, "val_interval": 1, "viz_interval": 1}}')

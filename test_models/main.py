@@ -1,4 +1,3 @@
- 
 #!/usr/bin/env python3
 """
 Main training script for sparse dictionary learning on ResNet50 features.
@@ -41,42 +40,113 @@ from models.resnet_extractor import ResNetFeatureExtractor
 from data.imagenet_loader import ImageNetDataLoader
 from data.many00_loader import Many00DataLoader
 from utils.training_utils import compute_sparsity_loss, compute_reconstruction_loss
-from test_models.utils.visualization_utils import visualize_dictionary_features
+from utils.visualization_utils import visualize_dictionary_features, run_post_training_analysis
 
 
 def main():
+    # Change working directory to where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    original_cwd = os.getcwd()
+    os.chdir(script_dir)
+    print(f"Changed working directory from {original_cwd} to {script_dir}")
+    
     parser = argparse.ArgumentParser(description='Sparse Dictionary Learning on ResNet50')
-    parser.add_argument('--config', type=str, default='configs/default.json', 
-                       help='Path to configuration file')
     parser.add_argument('--experiment_name', type=str, default='sparse_dict_resnet50',
                        help='Name for the experiment')
     parser.add_argument('--use_subset', action='store_true',
                        help='Use only 64 neurons subset experiment')
+    parser.add_argument('--use_wandb', action='store_true',
+                       help='Enable Weights & Biases logging')
+    
+    # Model arguments
+    parser.add_argument('--resnet_model', type=str, default='resnet50',
+                       help='ResNet model name (resnet18, resnet50, etc.)')
+    parser.add_argument('--target_layer', type=str, default='layer4',
+                       help='Target layer for feature extraction')
+    parser.add_argument('--pretrained', action='store_true', default=True,
+                       help='Use pretrained ResNet model')
+    
+    # Dictionary arguments
+    parser.add_argument('--dict_size', type=int, default=4000,
+                       help='Dictionary size')
+    parser.add_argument('--sparsity_coef', type=float, default=0.1,
+                       help='Sparsity coefficient')
+    
+    # Data arguments
+    parser.add_argument('--imagenet_path', type=str, default='/tmp/imagenet',
+                       help='Path to ImageNet dataset')
+    parser.add_argument('--many00_path', type=str, default='./../../../data/manyOO',
+                       help='Path to Many00 dataset')
+    parser.add_argument('--num_workers', type=int, default=4,
+                       help='Number of data loader workers')
+    parser.add_argument('--use_imagenet', action='store_true',
+                       help='Use ImageNet dataset instead of Many00')
+    
+    # Training arguments
+    parser.add_argument('--batch_size', type=int, default=254,
+                       help='Batch size')
+    parser.add_argument('--num_epochs', type=int, default=10,
+                       help='Number of training epochs')
+    parser.add_argument('--learning_rate', type=float, default=0.001,
+                       help='Learning rate')
+    parser.add_argument('--log_interval', type=int, default=10,
+                       help='Logging interval (batches)')
+    parser.add_argument('--val_interval', type=int, default=1,
+                       help='Validation interval (epochs)')
+    parser.add_argument('--viz_interval', type=int, default=5,
+                       help='Visualization interval (epochs)')
+    
     args = parser.parse_args()
     
-    # Load configuration
-    with open(args.config, 'r') as f:
-        config = json.load(f)
+    # Create config dictionary from arguments
+    config = {
+        'resnet': {
+            'model_name': args.resnet_model,
+            'target_layer': args.target_layer,
+            'pretrained': args.pretrained
+        },
+        'sparse_dict': {
+            'dict_size': args.dict_size,
+            'sparsity_coef': args.sparsity_coef
+        },
+        'data': {
+            'imagenet_path': args.imagenet_path,
+            'many00_path': args.many00_path,
+            'num_workers': args.num_workers
+        },
+        'training': {
+            'batch_size': args.batch_size,
+            'num_epochs': args.num_epochs,
+            'learning_rate': args.learning_rate,
+            'log_interval': args.log_interval,
+            'val_interval': args.val_interval,
+            'viz_interval': args.viz_interval
+        }
+    }
     
     # Device setup
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Initialize wandb
-    wandb.init(project="sparse-dictionary-learning", name=args.experiment_name, config=config)
+    # Initialize wandb only if requested
+    if args.use_wandb:
+        wandb.init(project="sparse-dictionary-learning", name=args.experiment_name, config=config)
+        print("Weights & Biases logging enabled")
+    else:
+        print("Weights & Biases logging disabled")
     
     # Setup models
     resnet_extractor = ResNetFeatureExtractor(
         model_name=config['resnet']['model_name'],
         layer_name=config['resnet']['target_layer'],
-        pretrained=True
+        pretrained=config['resnet']['pretrained']
     ).to(device)
     
     # Get feature dimensions
     with torch.no_grad():
         dummy_input = torch.randn(1, 3, 224, 224).to(device)
         dummy_features = resnet_extractor(dummy_input)
-        feature_dim = dummy_features.shape[1]  # Should be 2048 for ResNet50 penultimate layer
+        feature_dim = dummy_features.shape[1]  # Should be 2048 for ResNet50 layer4
     
     print(f"Feature dimension: {feature_dim}")
     
@@ -97,22 +167,27 @@ def main():
     ).to(device)
     
     # Setup data loaders
-    imagenet_loader = ImageNetDataLoader(
-        root_path=config['data']['imagenet_path'],
-        batch_size=config['training']['batch_size'],
-        num_workers=config['data']['num_workers']
-    )
-    
-    many00_loader = Many00DataLoader(
-        root_path=config['data']['many00_path'],
-        batch_size=config['training']['batch_size'],
-        num_workers=config['data']['num_workers'],
-        # Additional params will be specified in the loader implementation
-    )
-    
-    # Combine data loaders or alternate between them
-    train_loader = imagenet_loader.get_train_loader()
-    val_loader = imagenet_loader.get_val_loader()
+    if args.use_imagenet:
+        print("Using ImageNet dataset")
+        imagenet_loader = ImageNetDataLoader(
+            root_path=config['data']['imagenet_path'],
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers']
+        )
+        train_loader = imagenet_loader.get_train_loader()
+        val_loader = imagenet_loader.get_val_loader()
+    else:
+        print("Using Many00 dataset")
+        many00_loader = Many00DataLoader(
+            root_path=config['data']['many00_path'],
+            batch_size=config['training']['batch_size'],
+            num_workers=config['data']['num_workers']
+        )
+        
+        # For Many00, we'll use the same loader for both train and val
+        # You can modify this if you have separate train/val splits
+        train_loader = many00_loader.get_dataloader()
+        val_loader = many00_loader.get_dataloader()  # Using same for now
     
     # Optimizer
     optimizer = optim.Adam(sparse_dict.parameters(), lr=config['training']['learning_rate'])
@@ -167,7 +242,7 @@ def main():
             })
             
             # Log to wandb
-            if batch_idx % config['training']['log_interval'] == 0:
+            if batch_idx % config['training']['log_interval'] == 0 and args.use_wandb:
                 wandb.log({
                     'batch_loss': total_batch_loss.item(),
                     'batch_recon_loss': recon_loss.item(),
@@ -187,13 +262,14 @@ def main():
             val_loss = validate(sparse_dict, resnet_extractor, val_loader, device, args.use_subset)
             scheduler.step(val_loss)
             
-            wandb.log({
-                'epoch': epoch,
-                'train_loss': avg_loss,
-                'train_recon_loss': avg_recon_loss,
-                'train_sparsity_loss': avg_sparsity_loss,
-                'val_loss': val_loss
-            })
+            if args.use_wandb:
+                wandb.log({
+                    'epoch': epoch,
+                    'train_loss': avg_loss,
+                    'train_recon_loss': avg_recon_loss,
+                    'train_sparsity_loss': avg_sparsity_loss,
+                    'val_loss': val_loss
+                })
             
             # Save best model
             if val_loss < best_loss:
@@ -205,7 +281,46 @@ def main():
             visualize_dictionary_features(sparse_dict, epoch, args.experiment_name)
     
     print("Training completed!")
-    wandb.finish()
+    
+    # Run post-training analysis for category activations
+    print("\nStarting post-training category activation analysis...")
+    try:
+        # Use validation loader for analysis (or create a separate analysis loader)
+        analysis_loader = val_loader
+        
+        # Run comprehensive analysis
+        category_activations, category_counts = run_post_training_analysis(
+            sparse_dict=sparse_dict,
+            resnet_extractor=resnet_extractor, 
+            dataloader=analysis_loader,
+            device=device,
+            experiment_name=args.experiment_name,
+            use_subset=args.use_subset
+        )
+        
+        # Log category analysis to wandb if enabled
+        if args.use_wandb:
+            wandb.log({
+                'analysis/num_categories': len(category_counts),
+                'analysis/total_samples_analyzed': sum(category_counts.values()),
+            })
+            
+            # Log per-category sample counts
+            for category, count in category_counts.items():
+                wandb.log({f'analysis/category_samples/{category}': count})
+        
+        print(f"Category analysis completed for {len(category_counts)} categories")
+        
+    except Exception as e:
+        print(f"Error during post-training analysis: {e}")
+        print("Continuing without analysis...")
+    
+    if args.use_wandb:
+        wandb.finish()
+    
+    # Restore original working directory
+    os.chdir(original_cwd)
+    print(f"Restored working directory to {original_cwd}")
 
 
 def validate(sparse_dict, resnet_extractor, val_loader, device, use_subset):
